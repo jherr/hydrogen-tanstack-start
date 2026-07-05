@@ -3,8 +3,8 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
-
-import StoreDevtools from '../lib/demo-store-devtools'
+import CartDrawer from '../components/CartDrawer'
+import { CartProvider } from '../lib/hydrogen/cart'
 
 import appCss from '../styles.css?url'
 
@@ -21,7 +21,7 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Shopify Storefront · TanStack Start',
       },
     ],
     links: [
@@ -39,12 +39,21 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Shopify Standard Actions runtime — required for cart mutations. */}
+        <script
+          type="module"
+          src="https://cdn.shopify.com/storefront/standard-actions.js"
+          crossOrigin="anonymous"
+        />
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
-        <Header />
-        {children}
-        <Footer />
+        <CartProvider>
+          <Header />
+          {children}
+          <Footer />
+          <CartDrawer />
+        </CartProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',
@@ -54,7 +63,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               name: 'Tanstack Router',
               render: <TanStackRouterDevtoolsPanel />,
             },
-            StoreDevtools,
           ]}
         />
         <Scripts />

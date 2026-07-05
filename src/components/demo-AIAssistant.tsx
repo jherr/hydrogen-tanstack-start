@@ -5,10 +5,11 @@ import { Store } from '@tanstack/store'
 import { Send, X, ChevronRight, BotIcon } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 
-import { useGuitarRecommendationChat } from '#/lib/demo-ai-hook'
-import type { ChatMessages } from '#/lib/demo-ai-hook'
+import { useShopAssistantChat } from '#/lib/ai-hook'
+import type { ChatMessages } from '#/lib/ai-hook'
 
-import GuitarRecommendation from './demo-GuitarRecommendation'
+import ProductRecommendation from './ProductRecommendation'
+import type { ProductCardData } from './ProductRecommendation'
 
 export const showAIAssistant = new Store(false)
 
@@ -24,8 +25,9 @@ function Messages({ messages }: { messages: ChatMessages }) {
 
   if (!messages.length) {
     return (
-      <div className="demo-muted flex flex-1 items-center justify-center text-sm">
-        Ask me anything! I'm here to help.
+      <div className="demo-muted flex flex-1 items-center justify-center px-6 text-center text-sm">
+        Tell me what you're looking for and I'll help you find the perfect
+        product — and add it to your cart.
       </div>
     )
   }
@@ -60,12 +62,14 @@ function Messages({ messages }: { messages: ChatMessages }) {
             }
             if (
               part.type === 'tool-call' &&
-              part.name === 'recommendGuitar' &&
+              part.name === 'recommendProduct' &&
               part.output
             ) {
               return (
-                <div key={part.id} className="max-w-[80%] mx-auto">
-                  <GuitarRecommendation id={String(part.output?.id)} />
+                <div key={part.id} className="mx-auto max-w-[85%] px-4">
+                  <ProductRecommendation
+                    product={part.output as ProductCardData}
+                  />
                 </div>
               )
             }
@@ -78,7 +82,7 @@ function Messages({ messages }: { messages: ChatMessages }) {
 
 export default function AIAssistant() {
   const isOpen = useStore(showAIAssistant, (state) => state)
-  const { messages, sendMessage } = useGuitarRecommendationChat()
+  const { messages, sendMessage } = useShopAssistantChat()
   const [input, setInput] = useState('')
 
   return (
@@ -89,7 +93,7 @@ export default function AIAssistant() {
       >
         <div className="flex items-center gap-2">
           <BotIcon size={24} />
-          <span className="font-medium">AI Assistant</span>
+          <span className="font-medium">Shopping Assistant</span>
         </div>
         <ChevronRight className="w-4 h-4" />
       </button>
@@ -98,7 +102,7 @@ export default function AIAssistant() {
         <div className="demo-panel fixed inset-x-4 top-20 z-[100] flex h-[calc(100vh-6rem)] max-h-[600px] flex-col overflow-hidden p-0 sm:left-auto sm:w-[min(calc(100vw-2rem),700px)]">
           <div className="flex items-center justify-between border-b border-[var(--line)] p-3">
             <h3 className="font-semibold text-[var(--sea-ink)]">
-              AI Assistant
+              Shopping Assistant
             </h3>
             <button
               onClick={() => showAIAssistant.setState((state) => !state)}

@@ -1,5 +1,5 @@
 {
-  "name": "tanstack-mod-federation-store",
+  "name": "tanstack-merch-store",
   "private": true,
   "type": "module",
   "imports": {
@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@shopify/hydrogen": "0.0.0-preview-0c3bff8-20260618001533",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "latest",
     "@tanstack/ai-anthropic": "latest",
