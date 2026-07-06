@@ -1,245 +1,157 @@
-Welcome to your new TanStack Start app! 
+# Hydrogen on TanStack Start
 
-# Getting Started
+An AI-powered Shopify storefront built with **TanStack Start** and the framework-agnostic **`@shopify/hydrogen`** toolkit. It renders live catalog, collection, product, and cart pages against the Shopify Storefront API, and ships an AI shopping assistant that can browse the catalog, recommend products, assemble outfits, and add items to the cart.
 
-To run this application:
+This project demonstrates how to wire Hydrogen (the toolkit — Storefront API client, cart server handlers, and React bindings) into TanStack Start running on Nitro/Vite. It uses Hydrogen **only**, not Oxygen hosting and not the Remix-based Hydrogen framework, so it deploys anywhere Nitro deploys.
+
+## Features
+
+- **Live Shopify storefront** — home, collections (`/collections`, `/collections/$handle`), product detail (`/products/$handle`), and cart pages driven by the Storefront API (no codegen; typed `gql` queries).
+- **Hydrogen cart** — add-to-cart, cart drawer, and cart page powered by Hydrogen's React cart bindings and the Shopify Standard Actions runtime.
+- **AI shopping assistant** — a chat assistant (TanStack AI) with tools to `browseCatalog`, `searchProducts`, `recommendProduct` (rich product cards), and `addToCart`. It can build coordinated multi-item outfits from real inventory.
+- **Multi-provider AI** — automatically selects Anthropic, OpenAI, Gemini, or a local Ollama fallback based on which API key is present.
+- **Mock mode** — with no Shopify credentials the app still boots; the Shopify request gate is bypassed and `/api/cart` is served in-memory.
+- **Light/dark theming** — no-flash theme toggle with `auto`/`light`/`dark` modes.
+- **Deploy anywhere** — Nitro server output runs on any Node-compatible host.
+
+## Tech Stack
+
+| Concern | Choice |
+|---------|--------|
+| Framework | [TanStack Start](https://tanstack.com/start) (Nitro + Vite) |
+| Routing | [TanStack Router](https://tanstack.com/router) (file-based) |
+| State | [TanStack Store](https://tanstack.com/store) |
+| Commerce | [`@shopify/hydrogen`](https://shopify.dev/docs/api/hydrogen) toolkit + Storefront API |
+| AI | [TanStack AI](https://tanstack.com/) (Anthropic / OpenAI / Gemini / Ollama) |
+| UI | React 19, Tailwind CSS v4, Lucide icons |
+| Testing | Vitest |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- [pnpm](https://pnpm.io/)
+
+### 1. Install dependencies
 
 ```bash
 pnpm install
+```
+
+> **Note:** `@shopify/hydrogen` is pinned to an exact preview version on purpose. Do **not** change it to a caret range — a caret can silently resolve to an old `unstable` build that lacks the `/react` export.
+
+### 2. Configure environment variables
+
+Copy the example file and fill in your values:
+
+```bash
+cp .env.example .env.local
+```
+
+```env
+# AI provider — set at least one (Anthropic is preferred when present)
+ANTHROPIC_API_KEY=
+
+# Shopify Storefront API (optional — omit to run in mock mode)
+PUBLIC_STORE_DOMAIN=
+PUBLIC_STOREFRONT_API_TOKEN=
+PRIVATE_STOREFRONT_API_TOKEN=
+```
+
+**Shopify credentials** (optional): create a Headless / Storefront API app in the Shopify admin.
+- `PUBLIC_STORE_DOMAIN` — e.g. `your-shop.myshopify.com`
+- `PUBLIC_STOREFRONT_API_TOKEN` — public Storefront API token
+- `PRIVATE_STOREFRONT_API_TOKEN` — private Storefront API token
+- `PUBLIC_STOREFRONT_ID` — optional; defaults to `0`
+
+Grant the token the `unauthenticated_read_product_inventory` scope, otherwise Hydrogen's cart mutations fail with `CartNetworkError` (Hydrogen always requests `quantityAvailable`).
+
+If Shopify credentials are absent, the app runs in **mock mode**: storefront pages that need live data will be empty, but the app boots and `/api/cart` is served from an in-memory cart.
+
+**AI provider** (at least one recommended): the chat route picks a provider in this priority order based on which key is set:
+
+| Priority | Env var | Model |
+|----------|---------|-------|
+| 1 | `ANTHROPIC_API_KEY` | `claude-haiku-4-5` |
+| 2 | `OPENAI_API_KEY` | `gpt-4o` |
+| 3 | `GEMINI_API_KEY` | `gemini-2.0-flash-exp` |
+| fallback | _(none)_ | local Ollama `mistral:7b` |
+
+### 3. Run the dev server
+
+```bash
 pnpm dev
 ```
 
-# Building For Production
+The app runs at [http://localhost:3000](http://localhost:3000).
 
-To build this application for production:
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start the dev server on port 3000 |
+| `pnpm build` | Build for production (Nitro output) |
+| `pnpm preview` | Preview the production build |
+| `pnpm test` | Run the Vitest test suite |
+| `pnpm generate-routes` | Regenerate the TanStack Router route tree |
+
+## Project Structure
+
+```
+src/
+├── routes/                    # File-based routes
+│   ├── __root.tsx             # Root document (theme + Standard Actions script + cart provider)
+│   ├── index.tsx              # Home
+│   ├── collections/           # Collection list + detail
+│   ├── products/$handle.tsx   # Product detail
+│   ├── cart.tsx               # Cart page
+│   └── api.ai.chat.ts         # AI chat endpoint (multi-provider, tool-calling)
+├── components/                # Header, Footer, CartDrawer, AI assistant, product cards, theme toggle
+├── lib/
+│   ├── ai-tools.ts            # Shared AI tool schemas (client + server safe)
+│   ├── ai-tools.server.ts     # Server implementations (query the Storefront API)
+│   ├── ai-hook.ts             # Client-side AI chat hook
+│   └── hydrogen/              # Hydrogen adapter layer
+│       ├── env.ts             # Server-only Shopify env (canonical names)
+│       ├── gate.ts            # Request middleware: handleShopifyRoutes / redirects
+│       ├── client.server.ts   # Storefront client
+│       ├── data.server.ts     # Data layer (search / list catalog)
+│       ├── queries.ts         # Typed gql queries
+│       ├── cart-handlers.server.ts  # Hydrogen cart server handlers
+│       ├── cart.tsx           # React cart bindings
+│       └── product.tsx        # React product bindings
+└── start.ts                   # createStart — registers the Shopify request gate
+```
+
+## How Hydrogen is wired in
+
+- **Request gate** (`src/start.ts` → `src/lib/hydrogen/gate.ts`): a `createStart` request middleware runs `handleShopifyRoutes` before routing (owns `/api/cart`, the SFAPI proxy, `/checkout`, cart permalinks) and `handleShopifyRedirects` after a 404. It short-circuits entirely when no credentials are configured.
+- **Server-only imports**: all `@shopify/hydrogen` server calls live in `*.server.ts` modules and are `await import()`ed lazily so they never enter the client bundle. Only `@shopify/hydrogen/react` bindings are imported in client components.
+- **Standard Actions runtime**: cart mutations run through `window.Shopify.actions`, loaded via a `<script type="module">` in the root document `<head>`. Without it, cart actions throw.
+
+For a deeper, copy-ready guide to the integration (and the non-obvious gotchas), see [`.skills/hydrogen-tanstack-start/SKILL.md`](.skills/hydrogen-tanstack-start/SKILL.md) and [`reference.md`](.skills/hydrogen-tanstack-start/reference.md).
+
+## Building for Production
 
 ```bash
 pnpm build
+node dist/server/index.mjs
 ```
 
-## Testing
+The build output is a self-contained Node server. Push the `dist/` directory to your host (Render, Fly.io, a VPS, etc.) and run the command above. For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda) see the [Nitro deployment docs](https://nitro.build/deploy).
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+## Testing
 
 ```bash
 pnpm test
 ```
 
-## Styling
+This project uses [Vitest](https://vitest.dev/).
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+## Learn More
 
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `pnpm add @tailwindcss/vite tailwindcss --dev`
-
-
-## Deploy with Nitro
-
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
-
-```bash
-npm run build
-node dist/server/index.mjs
-```
-
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
-
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
-
-
-# TanStack Chat Application
-
-Am example chat application built with TanStack Start, TanStack Store, and Claude AI.
-
-## .env Updates
-
-```env
-ANTHROPIC_API_KEY=your_anthropic_api_key
-```
-
-## ✨ Features
-
-### AI Capabilities
-- 🤖 Powered by Claude 3.5 Sonnet 
-- 📝 Rich markdown formatting with syntax highlighting
-- 🎯 Customizable system prompts for tailored AI behavior
-- 🔄 Real-time message updates and streaming responses (coming soon)
-
-### User Experience
-- 🎨 Modern UI with Tailwind CSS and Lucide icons
-- 🔍 Conversation management and history
-- 🔐 Secure API key management
-- 📋 Markdown rendering with code highlighting
-
-### Technical Features
-- 📦 Centralized state management with TanStack Store
-- 🔌 Extensible architecture for multiple AI providers
-- 🛠️ TypeScript for type safety
-
-## Architecture
-
-### Tech Stack
-- **Frontend Framework**: TanStack Start
-- **Routing**: TanStack Router
-- **State Management**: TanStack Store
-- **Styling**: Tailwind CSS
-- **AI Integration**: Anthropic's Claude API
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+- [TanStack Start](https://tanstack.com/start)
+- [TanStack Router](https://tanstack.com/router)
+- [Shopify Hydrogen](https://shopify.dev/docs/api/hydrogen)
+- [Shopify Storefront API](https://shopify.dev/docs/api/storefront)
